@@ -1,0 +1,13 @@
+version: '3.4'
+
+services:
+  camera_5003_recorder:
+    build: .
+    volumes:
+      - PATH_TO_SAVE_RECORDS:/records
+      - PATH_TO_SAVE_LOGS:/logs
+    environment:
+      TZ: Etc/GMT-7
+      CAMERA_NAME: CAMERA_NAME
+      STREAM_LINK: "rtsp://LOGIX:PASSWORD@CAMERA_IP:CAMERA_PORT/CAMERA_CHANNEL"
+    cpuset: "0"

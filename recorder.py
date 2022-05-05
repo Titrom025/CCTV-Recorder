@@ -10,7 +10,7 @@ ROOT_PATH = '/records'
 CAMERA_NAME = VIDEO_DIR = None
 
 NEXT_VIDEO = False
-VIDEO_MINUTES = 1
+VIDEO_MINUTES = 3
 
 class RTSPVideoWriterObject(object):
 	def __init__(self, src):
@@ -18,8 +18,8 @@ class RTSPVideoWriterObject(object):
 		self.capture = cv2.VideoCapture(self.src)
 
 		self.fps = int(self.capture.get(5))
-		self.frame_width = int(self.capture.get(3))
-		self.frame_height = int(self.capture.get(4))
+		self.frame_width = 800
+		self.frame_height = 450
 		self.codec = cv2.VideoWriter_fourcc(*'h264')
 
 		self.frame_count = 1
@@ -41,6 +41,7 @@ class RTSPVideoWriterObject(object):
 			if self.capture.isOpened():
 				(self.status, self.frame) = self.capture.read()
 				if self.status:
+					self.frame = cv2.resize(self.frame, (self.frame_width, self.frame_height)) 
 					self.output_video.write(self.frame)
 					self.frame_count += 1
 				else:
@@ -48,8 +49,7 @@ class RTSPVideoWriterObject(object):
 			else:
 				self.reconnect()
 
-			if (NEXT_VIDEO and self.frame_count >= VIDEO_MINUTES * 60 * 25): #or \
-
+			if (NEXT_VIDEO and self.frame_count >= VIDEO_MINUTES * 60 * 25):
 				print(f'Frames saved: {self.frame_count}')
 				self.frame_count = 0
 

@@ -34,6 +34,7 @@ class RTSPVideoWriterObject(object):
 	def __init__(self, src):
 		self.src = src
 		self.capture = cv2.VideoCapture(self.src)
+		self.reconnect_time = 1
 
 		self.fps = int(self.capture.get(5))
 		self.frame_width = 800
@@ -46,12 +47,20 @@ class RTSPVideoWriterObject(object):
 
 
 	def reconnect(self):
-		logging.warning(f'Connection lost for camera {CAMERA_NAME} - sleeping for 5 second and reconnecting...')
-		print('Connection lost, sleep 5 second and reconnecting...')
-		time.sleep(5)
+		if self.reconnect_time == 1:
+			LOGGER.warning(f'Connection lost for camera {CAMERA_NAME} - sleep for a {self.reconnect_time} seconds and reconnecting...')
+		else:
+			LOGGER.warning(f'Connection failed for camera {CAMERA_NAME} - sleep for a {self.reconnect_time} seconds and reconnecting...')
+		time.sleep(self.reconnect_time)
 		self.capture = cv2.VideoCapture(self.src)
 		if self.capture.isOpened():
-			logging.info(f'Reconnect for camera {CAMERA_NAME} - SUCCESS')
+			LOGGER.info(f'Reconnect for camera {CAMERA_NAME} - SUCCESS')
+			self.reconnect_time = 1
+		else:
+			self.reconnect_time *= 2
+			if self.reconnect_time > 300:
+				self.reconnect_time = 300
+
 
 	def startRecorder(self):
 		global NEXT_VIDEO

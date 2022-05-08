@@ -1,16 +1,34 @@
 import cv2
 import logging
+import logging.handlers as handlers
 import os
-import sys
 import time
 import threading as th  
 from datetime import datetime
 
+
 ROOT_PATH = '/records'
+LOG_PATH = '/logs'
 CAMERA_NAME = VIDEO_DIR = None
+LOGGER = None
 
 NEXT_VIDEO = False
 VIDEO_MINUTES = 3
+
+
+def initLogger():
+	global LOGGER
+	logging.basicConfig(level=logging.INFO,
+						format='[%(asctime)s] %(levelname)s: %(message)s',
+						datefmt='%d-%m-%y %H:%M:%S')
+	LOGGER = logging.getLogger('recorder')
+	logHandler = handlers.TimedRotatingFileHandler(f'/{LOG_PATH}/cameras.log', when='H', interval=1)
+	formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
+	logHandler.setFormatter(formatter)
+	logHandler.setLevel(logging.INFO)
+	logHandler.suffix = '%d-%m-%y_%H-%M'
+	LOGGER.addHandler(logHandler)
+
 
 class RTSPVideoWriterObject(object):
 	def __init__(self, src):
@@ -35,7 +53,7 @@ class RTSPVideoWriterObject(object):
 		if self.capture.isOpened():
 			logging.info(f'Reconnect for camera {CAMERA_NAME} - SUCCESS')
 
-	def update(self):
+	def startRecorder(self):
 		global NEXT_VIDEO
 		while True:
 			if self.capture.isOpened():
@@ -59,7 +77,7 @@ class RTSPVideoWriterObject(object):
 				os.system(f'mv "{self.current_videoname}" "{saved_videoname}"')
 
 				self.current_videoname = f'{VIDEO_DIR}/{str(round(time.time() * 1000))}_0_.ts'
-				logging.info(f'New video ({saved_videoname.split("/")[-1]}) saved for camera {CAMERA_NAME}')
+				LOGGER.info(f'New video ({saved_videoname.split("/")[-1]}) saved for camera {CAMERA_NAME}')
 
 				self.output_video = cv2.VideoWriter(self.current_videoname, self.codec, self.fps, (self.frame_width, self.frame_height))
 				NEXT_VIDEO = False
@@ -84,10 +102,8 @@ if __name__ == '__main__':
 	CAMERA_NAME = os.environ['CAMERA_NAME']
 	rtsp_stream_link = os.environ['STREAM_LINK']
 
-	logging.basicConfig(level=logging.INFO, filename='/logs/cameras.log', 
-							  format='[%(asctime)s] %(levelname)s: %(message)s',
-							  datefmt='%d-%m-%y %H:%M:%S')
-	logging.info(f'Start recorder for camera {CAMERA_NAME}')
+	initLogger()
+	LOGGER.info(f'Start recorder for camera {CAMERA_NAME}')
 
 	updateVideoDir()
 	timerThread = th.Thread(target=timer)  
@@ -95,8 +111,9 @@ if __name__ == '__main__':
 	timerThread.start()  
 	video_stream_widget = RTSPVideoWriterObject(rtsp_stream_link)
 
-	try:
-		video_stream_widget.update()
-	except IndexError:
-		print("KeyboardInterrupt received.")
-		sys.exit()
+	while True:
+		try:
+			video_stream_widget.startRecorder()
+		except Exception as e:
+			print("KeyboardInterrupt received.")
+			LOGGER.error(e)

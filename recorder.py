@@ -7,11 +7,15 @@ from datetime import datetime, timedelta
 
 ROOT_PATH = '/records'
 LOG_PATH = '/logs'
+RECONNECTION_TIME_LIMIT = 180
 LOG_FILE = ''
 CAMERA_NAME = VIDEO_DIR = None
 
 NEXT_VIDEO = False
 VIDEO_MINUTES = 3
+
+VIDEO_WIDTH = 800
+VIDEO_HEIGHT = 450
 
 
 def videoLimitExceeded(dirpath):
@@ -39,11 +43,21 @@ def logMessage(type, message):
 
 
 class RTSPVideoWriterObject(object):
-	def __init__(self, src):
+	def __init__(self, src, image_x=None, image_y=None, image_width=None, image_height=None):
 		self.src = src
 		self.capture = cv2.VideoCapture(self.src)
-		self.frame_width = 800
-		self.frame_height = 450
+
+		if image_x is not None and image_y is not None \
+				and image_width is not None and image_height is not None:
+			self.image_x = image_x
+			self.image_y = image_y
+			self.image_width = image_width
+			self.image_height = image_height
+		else:
+			self.image_x = 0
+			self.image_y = 0
+			self.image_width = self.fps = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+			self.image_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 		self.reconnect_time = 1
 
@@ -52,7 +66,7 @@ class RTSPVideoWriterObject(object):
 
 		self.frame_count = 1
 		self.current_videoname = f'{VIDEO_DIR}/{str(round(time.time() * 1000))}_0_.ts'
-		self.output_video = cv2.VideoWriter(self.current_videoname, self.codec, self.fps, (self.frame_width, self.frame_height))
+		self.output_video = cv2.VideoWriter(self.current_videoname, self.codec, self.fps, (VIDEO_WIDTH, VIDEO_HEIGHT))
 
 
 	def reconnect(self):
@@ -67,8 +81,8 @@ class RTSPVideoWriterObject(object):
 			self.reconnect_time = 1
 		else:
 			self.reconnect_time *= 2
-			if self.reconnect_time > 300:
-				self.reconnect_time = 300
+			if self.reconnect_time > RECONNECTION_TIME_LIMIT:
+				self.reconnect_time = RECONNECTION_TIME_LIMIT
 
 
 	def startRecorder(self):
@@ -77,7 +91,8 @@ class RTSPVideoWriterObject(object):
 			if self.capture.isOpened():
 				(self.status, self.frame) = self.capture.read()
 				if self.status:
-					self.frame = cv2.resize(self.frame, (self.frame_width, self.frame_height)) 
+					self.frame = self.frame[self.image_y:self.image_y + self.image_height, self.image_x:self.image_x + self.image_width]
+					self.frame = cv2.resize(self.frame, (VIDEO_WIDTH, VIDEO_HEIGHT)) 
 					self.output_video.write(self.frame)
 					self.frame_count += 1
 				else:
@@ -98,7 +113,7 @@ class RTSPVideoWriterObject(object):
 				logMessage('INFO', f'New video ({saved_videoname.split("/")[-1]}) saved for camera {CAMERA_NAME}')
 
 				self.output_video.release()
-				self.output_video = cv2.VideoWriter(self.current_videoname, self.codec, self.fps, (self.frame_width, self.frame_height))
+				self.output_video = cv2.VideoWriter(self.current_videoname, self.codec, self.fps, (VIDEO_WIDTH, VIDEO_HEIGHT))
 				NEXT_VIDEO = False
 
 
@@ -127,6 +142,14 @@ if __name__ == '__main__':
 	CAMERA_NAME = os.environ['CAMERA_NAME']
 	rtsp_stream_link = os.environ['STREAM_LINK']
 
+	image_x = image_y = image_width = image_height = None
+	if 'IMAGE_X' in os.environ and 'IMAGE_Y' in os.environ \
+			and 'IMAGE_WIDTH' in os.environ and 'IMAGE_HEIGHT' in os.environ:
+		image_x = int(os.environ['IMAGE_X'])
+		image_y = int(os.environ['IMAGE_Y'])
+		image_width = int(os.environ['IMAGE_WIDTH'])
+		image_height = int(os.environ['IMAGE_HEIGHT'])
+
 	try:
 		os.makedirs(LOG_PATH, exist_ok=True)
 	except Exception:
@@ -138,7 +161,7 @@ if __name__ == '__main__':
 	timerThread = th.Thread(target=timer)  
 	timerThread.daemon = True
 	timerThread.start()  
-	video_stream_widget = RTSPVideoWriterObject(rtsp_stream_link)
+	video_stream_widget = RTSPVideoWriterObject(rtsp_stream_link, image_x, image_y, image_width, image_height)
 
 	while True:
 		try:

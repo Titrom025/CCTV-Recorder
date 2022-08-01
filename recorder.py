@@ -7,12 +7,13 @@ from datetime import datetime, timedelta
 
 ROOT_PATH = '/records'
 LOG_PATH = '/logs'
-RECONNECTION_TIME_LIMIT = 180
 LOG_FILE = ''
+
+RECONNECTION_TIME_LIMIT = 180
 CAMERA_NAME = VIDEO_DIR = None
 
 NEXT_VIDEO = False
-VIDEO_MINUTES = 3
+VIDEO_LENGTH = 1
 
 VIDEO_WIDTH = 800
 VIDEO_HEIGHT = 450
@@ -25,7 +26,7 @@ def videoLimitExceeded(dirpath):
 			s for s in os.listdir(dirpath)
 			if os.path.isfile(os.path.join(dirpath, s)) 
 			and os.path.splitext(s)[1] == '.ts'
-		]) >= 20
+		]) >= (60 / VIDEO_LENGTH)
 
 
 def logMessage(type, message):
@@ -100,8 +101,7 @@ class RTSPVideoWriterObject(object):
 			else:
 				self.reconnect()
 
-			if (NEXT_VIDEO and self.frame_count >= VIDEO_MINUTES * 60 * 25):
-				print(f'Frames saved: {self.frame_count}')
+			if NEXT_VIDEO and self.frame_count >= VIDEO_LENGTH * 60 * 25:
 				self.frame_count = 0
 
 				self.output_video.release()
@@ -133,12 +133,20 @@ def updateVideoDir():
 def timer():  
 	global NEXT_VIDEO
 	while True:
-		time.sleep(60 * VIDEO_MINUTES - 1)
+		time.sleep(60 * VIDEO_LENGTH - 0.1)
 		updateVideoDir()
 		NEXT_VIDEO = True
 
 
+def calibrateTime():
+	dt = datetime.now()
+	while dt.second != 0:
+		dt = datetime.now()
+		time.sleep(0.5)
+
+
 if __name__ == '__main__':
+	VIDEO_LENGTH = int(os.environ['VIDEO_LENGTH'])
 	CAMERA_NAME = os.environ['CAMERA_NAME']
 	rtsp_stream_link = os.environ['STREAM_LINK']
 
@@ -154,8 +162,10 @@ if __name__ == '__main__':
 		os.makedirs(LOG_PATH, exist_ok=True)
 	except Exception:
 		pass
-	
+
 	updateVideoDir()
+	logMessage('INFO', f'Time calibration for camera {CAMERA_NAME}')
+	calibrateTime()
 	logMessage('INFO', f'Start recorder for camera {CAMERA_NAME}')
 
 	timerThread = th.Thread(target=timer)  

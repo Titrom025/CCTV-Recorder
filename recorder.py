@@ -66,7 +66,7 @@ class RTSPVideoWriterObject(object):
 		self.codec = cv2.VideoWriter_fourcc(*'h264')
 
 		self.frame_count = 1
-		self.current_videoname = f'{VIDEO_DIR}/{str(round(time.time() * 1000))}_0_.ts'
+		self.current_videoname = f'{VIDEO_DIR}/{datetime.now().strftime("%Y-%m-%d_%H-%M")}_0_.ts'
 		self.output_video = cv2.VideoWriter(self.current_videoname, self.codec, self.fps, (VIDEO_WIDTH, VIDEO_HEIGHT))
 
 
@@ -105,11 +105,11 @@ class RTSPVideoWriterObject(object):
 				self.frame_count = 0
 
 				self.output_video.release()
-				end_time = str(round(time.time() * 1000))
-				saved_videoname = f'{self.current_videoname.replace("0_.ts", "") + end_time + "_.ts"}'
+				end_time = datetime.now().strftime("%Y-%m-%d_%H-%M")
+				saved_videoname = f'{self.current_videoname.replace("_0_.ts", "___") + end_time + "_.ts"}'
 				os.system(f'mv "{self.current_videoname}" "{saved_videoname}"')
 
-				self.current_videoname = f'{VIDEO_DIR}/{str(round(time.time() * 1000))}_0_.ts'
+				self.current_videoname = f'{VIDEO_DIR}/{datetime.now().strftime("%Y-%m-%d_%H-%M")}_0_.ts'
 				logMessage('INFO', f'New video ({saved_videoname.split("/")[-1]}) saved for camera {CAMERA_NAME}')
 
 				self.output_video.release()

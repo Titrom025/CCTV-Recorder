@@ -9,7 +9,7 @@ ROOT_PATH = '/records'
 LOG_PATH = '/logs'
 LOG_FILE = ''
 
-RECONNECTION_TIME_LIMIT = 180
+RECONNECTION_TIME_LIMIT = 60
 CAMERA_NAME = VIDEO_DIR = None
 
 NEXT_VIDEO = False
@@ -18,6 +18,7 @@ VIDEO_LENGTH = 1
 VIDEO_WIDTH = 800
 VIDEO_HEIGHT = 450
 
+CAPTURE_PARAMETERS = [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 2000, cv2.CAP_PROP_READ_TIMEOUT_MSEC, 2000]
 
 def videoLimitExceeded(dirpath):
 	if not os.path.exists(dirpath):
@@ -46,7 +47,7 @@ def logMessage(type, message):
 class RTSPVideoWriterObject(object):
 	def __init__(self, src, image_x=None, image_y=None, image_width=None, image_height=None):
 		self.src = src
-		self.capture = cv2.VideoCapture(self.src)
+		self.capture = cv2.VideoCapture(self.src, 0, CAPTURE_PARAMETERS)
 
 		if image_x is not None and image_y is not None \
 				and image_width is not None and image_height is not None:
@@ -60,7 +61,7 @@ class RTSPVideoWriterObject(object):
 			self.image_width = self.fps = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
 			self.image_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-		self.reconnect_time = 1
+		self.reconnect_time = 0.1
 
 		self.fps = int(self.capture.get(cv2.CAP_PROP_FPS))
 		self.codec = cv2.VideoWriter_fourcc(*'h264')
@@ -71,17 +72,17 @@ class RTSPVideoWriterObject(object):
 
 
 	def reconnect(self):
-		if self.reconnect_time == 1:
+		if self.reconnect_time == 0.1:
 			logMessage('WARNING', f'Connection lost for camera {CAMERA_NAME} - sleep for a {self.reconnect_time} seconds and reconnecting...')
 		else:
 			logMessage('WARNING', f'Connection failed for camera {CAMERA_NAME} - sleep for a {self.reconnect_time} seconds and reconnecting...')
 		time.sleep(self.reconnect_time)
-		self.capture = cv2.VideoCapture(self.src)
+		self.capture.open(self.src, 0, CAPTURE_PARAMETERS)
 		if self.capture.isOpened():
 			logMessage('INFO', f'Reconnect for camera {CAMERA_NAME} - SUCCESS')
-			self.reconnect_time = 1
+			self.reconnect_time = 0.1
 		else:
-			self.reconnect_time *= 2
+			self.reconnect_time *= 5
 			if self.reconnect_time > RECONNECTION_TIME_LIMIT:
 				self.reconnect_time = RECONNECTION_TIME_LIMIT
 
@@ -92,10 +93,13 @@ class RTSPVideoWriterObject(object):
 			if self.capture.isOpened():
 				(self.status, self.frame) = self.capture.read()
 				if self.status:
-					self.frame = self.frame[self.image_y:self.image_y + self.image_height, self.image_x:self.image_x + self.image_width]
-					self.frame = cv2.resize(self.frame, (VIDEO_WIDTH, VIDEO_HEIGHT)) 
-					self.output_video.write(self.frame)
-					self.frame_count += 1
+					try:
+						self.frame = self.frame[self.image_y:self.image_y + self.image_height, self.image_x:self.image_x + self.image_width]
+						self.frame = cv2.resize(self.frame, (VIDEO_WIDTH, VIDEO_HEIGHT)) 
+						self.output_video.write(self.frame)
+						self.frame_count += 1
+					except Exception:
+						pass
 				else:
 					self.reconnect()
 			else:
@@ -147,8 +151,8 @@ def calibrateTime():
 
 if __name__ == '__main__':
 	VIDEO_LENGTH = int(os.environ['VIDEO_LENGTH'])
-	CAMERA_NAME = os.environ['CAMERA_NAME']
-	rtsp_stream_link = os.environ['STREAM_LINK']
+	CAMERA_NAME = os.environ['CAMERA_NAME'] 
+	rtsp_stream_link = os.environ['STREAM_LINK'] + '?tcp'
 
 	image_x = image_y = image_width = image_height = None
 	if 'IMAGE_X' in os.environ and 'IMAGE_Y' in os.environ \
